@@ -186,7 +186,7 @@
    | mchoice : microprogram -> microprogram -> microprogram
    | massert : Test -> microprogram.
 
-   Coercion mprog : program >-> microprogram.
+ Coercion mprog : program >-> microprogram.
 
  Definition microconfig : Set := (microprogram*state)%type.
  
@@ -273,26 +273,50 @@
   Cost of speculation: cheapest program to revert (time/space).
   *)
 
+ Definition isProg (mp : microprogram) (p : program) : Prop := mprog p = mp.
+ Theorem eq_mp : forall p p', @eq microprogram (mprog p') (mprog p) <-> @eq (@program Sigma) p' p.
+ intros. 
+ split; intro; destruct p;inversion H; reflexivity.
+ Qed.
+ Theorem unique_isProg : forall mp p p', isProg mp p /\ isProg mp p' -> p = p'.
+ intros.
+ destruct H.
+ unfold isProg in *. subst. 
+ rewrite <- eq_mp. symmetry.
+ apply H0.
+ Qed.
+
+ Definition exist_prog (mp : microprogram) : Prop := exists p, mprog p = mp.
+
+ Definition toprog (mp : microprogram) : program := 
+   match mp with
+   | mprog p => p 
+   | _ => skip
+   end. 
+ Coercion toprog : microprogram >-> program.
+
+ Lemma getProgExist : forall mp, exist_prog mp -> isProg mp (toprog mp).
+ intros.
+ unfold exist_prog in H.
+ unfold isProg.
+ unfold toprog.
+ destruct mp; try destruct H; try inversion H; reflexivity.
+ Qed.
 
 
  Inductive microstep: microconfig -> microconfig -> Prop :=
  | MSmprog S S' s t: smallstep (S, s) (S', t) -> microstep (mprog S, s) (mprog S', t)
  | MSmparl S1 S2 S1' s t: microstep (S1, s) (S1', t) -> microstep (mpar S1 S2, s) (mpar S1' S2, t) 
  | MSmparr S1 S2 S2' s t: microstep (S2, s) (S2', t) -> microstep (mpar S1 S2, s) (mpar S1  S2', t) 
-     (* | MSmchoice S1 S1' S2 RevS s s' t: isReversible S1 s RevS -> microstep (mprog S1, s) (S1', s') -> 
-                                               microstep (mchoice S1 S2, s) 
-        (mchoice S1' (comp RevS S2), t) *).
+ | MSmchoice S1 S1' S2 RevS s s' t: isReversible S1 s RevS /\ exist_prog S2 -> 
+                                              microstep (mprog S1, s) (S1', s') -> 
+                                               microstep (mchoice S1 S2, s) (mchoice S1' (comp RevS S2), t).
      
 
  Record measures {A : Type} : Type := 
    {
    resource: list (A -> nat) (* list of operations *) 
    }.
-
-
- (*
-   
-  *)
 
  Definition measure : microprogram -> nat -> measure 
 
