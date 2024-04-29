@@ -7,7 +7,7 @@
  
  Import ListNotations.
  
- Section Syntax.
+ Section Language.
  
  (* Variables *)
  Definition var := nat.
@@ -56,10 +56,6 @@
    | while T S1 => change S1
    end.
  
- End Syntax.
- 
- Print program.
- 
  Section SemanticBasis.
  
  Class Domain := { A: Set }.
@@ -81,8 +77,6 @@
  Proposition same_refl f xs: same f f xs.
  unfold same; auto.
  Qed.
- 
- Context {Sigma: Signature}.
  
  Class Interp :=
  { Prel (O: Prim): state -> state -> Prop
@@ -118,21 +112,15 @@
    rewrite <- H1; auto.
  Qed.
  
- End SemanticBasis.
- 
  Section SmallStepSemantics.
- 
- Context {Sigma: Signature}.
- Context {D: Domain}.
  
  (* We need an interpretation in which there are `restore' operations. *)
  
- Class InterpRestore (I: Interp) :=
+ Class InterpRestore :=
  { Prim_restore (x: var) (a: A): Prim
  ; Prim_restore_spec a x s: Prel (Prim_restore x a) s (update s x a) }.
  
- Context {I: Interp}.
- Context {I1: InterpRestore I}.
+ Context {IRes: InterpRestore}.
  
  Definition config := (program * state)%type.
  
@@ -175,10 +163,11 @@
  Inductive bigstep : program -> state -> state -> Prop := 
    | BSprim O s t: Prel O s t -> bigstep (prim O) s t 
    | BScomp S1 S2 s t s': bigstep S1 s s' -> bigstep S2 s' t -> bigstep (comp S1 S2) s t.
+ (* TODO: finish bigstep *)
 
+ (* TODO: smallstep <-> bigstep *)
 
  Section Micro.
-
 
  Inductive microprogram : Set :=
    | mprog : program -> microprogram
@@ -195,12 +184,11 @@
     I(A1;A1^-1;B) = I(B)
     (A1;A1^-1, s) ->* (A1^-1, t) ->* (skip, s)
   *)
- Class InterpReverse `(I: InterpRestore) :=
- { 
-   Prim_reverse (p : Prim) (s : state): Prim
-   ; Prim_reverse_spec p s t: Prel p s t  -> Prel (Prim_reverse p s) t s }.
+ Class InterpReverse :=
+ { Prim_reverse (p : Prim) (s : state): Prim
+ ; Prim_reverse_spec p s t: Prel p s t  -> Prel (Prim_reverse p s) t s }.
 
- Context {I2: InterpReverse I1}.
+ Context {IRev: InterpReverse}.
  (*
   Properties:
     identities of reverse composition
@@ -221,7 +209,7 @@
 
  Fixpoint prog (bf : branchfree_program) : program :=
    match bf with
-   | bfprim S1 => prim S1 
+   | bfprim S1 => prim S1
    | bfskip => skip
    | bfhalt => halt
    | bflocal n S1 => local n (prog S1)
@@ -233,8 +221,8 @@
  Definition isInvertible (p : program) : Prop :=
   exists p',  forall s t, bigstep p s t  -> bigstep p' t s.
 
- Definition isReversible (p : program) (s : state) (rev_p : program) : Prop :=
-  forall t, bigstep p s t  -> bigstep rev_p t s.
+ Definition isReversible (p : program) (s : state) (rev_p_s : program) : Prop :=
+  forall t, bigstep p s t  -> bigstep rev_p_s t s.
 
  (*
  Inductive reverse (p : branchfree_program) (s : state) : branchfree_program :=
@@ -248,7 +236,7 @@
   *)
 
 
- Lemma bf_reversibility : forall p s, exists rev_p, isReversible p s rev_p. 
+ Lemma bf_reversibility : forall p s, exists rev_p_s, isReversible p s rev_p_s.
  (*
     reverse (ite b S1 S2) = if (exists b') then (reverse S1) else (reverse S2) where b' is true in final state if b was true in initial state.
   *)
